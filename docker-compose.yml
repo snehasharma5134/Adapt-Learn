@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: learning_companion_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: ai_learning_companion
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_learning_companion"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: learning_companion_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PROJECT_NAME: "AI Learning Companion"
+      ENVIRONMENT: "production"
+      DATABASE_URL: "postgresql://postgres:postgrespassword@db:5432/ai_learning_companion"
+      SECRET_KEY: "change-this-production-secret-key-to-a-very-long-random-string"
+      BACKEND_CORS_ORIGINS: '["http://localhost:3000", "http://localhost:80", "http://localhost:5173"]'
+      UPLOAD_DIR: "/app/uploads"
+      LLM_PROVIDER: "gemini"
+      LLM_API_KEY: "${LLM_API_KEY:-}"
+      LLM_MODEL_NAME: "gemini-1.5-pro-latest"
+      EMBEDDING_PROVIDER: "tfidf"
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: learning_companion_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  backend_uploads:
